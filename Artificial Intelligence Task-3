@@ -1,0 +1,70 @@
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.cluster import KMeans
+
+# Load data
+data = pd.read_csv(r"C:\Users\Admin\Desktop\spotify.csv")
+
+# Check the data
+print(data.head())
+print(data.info())
+print(data.isnull().sum())
+
+# Drop unnecessary columns for clustering
+df = data.drop(columns=['id', 'name', 'artists', 'release_date', 'year'])
+print(df)
+
+# Check correlations
+print(df.corr())
+
+# Normalize the numerical features
+datatypes = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+normarization = data.select_dtypes(include=datatypes)
+
+# Apply MinMaxScaler to normalize the data
+scaler = MinMaxScaler()
+normarized_data = pd.DataFrame(scaler.fit_transform(normarization), columns=normarization.columns)
+print(normarized_data)
+
+# Clustering using KMeans
+kmeans = KMeans(n_clusters=10, random_state=42)
+features = kmeans.fit_predict(normarized_data)
+data['features'] = features
+
+# Normalize 'features' column
+data['features'] = MinMaxScaler().fit_transform(data[['features']])
+
+# Define the song for which we need recommendations
+song_name = "I Don't Wanna Be Kissed"
+distance = []
+
+# Get the feature vector of the song
+song = data[data.name.str.lower() == song_name.lower()].head(1)
+
+# Check if the song exists in the dataset
+if song.empty:
+    print(f"Song '{song_name}' not found in the dataset.")
+else:
+    song = song.values[0]
+
+    # Exclude the song itself from recommendations
+    rec = data[data.name.str.lower() != song_name.lower()]
+
+    # Calculate the distance between the songs
+    for rec_song in tqdm(rec.values):
+        d = 0
+        for col in np.arange(len(rec.columns)):
+            if col not in [1, 6, 12, 14, 18]:  # Adjusted to actual indices of non-numeric columns
+                d += np.absolute(float(song[col]) - float(rec_song[col]))
+        distance.append(d)
+
+    rec['distance'] = distance
+
+    # Sort by distance to get the closest recommendations
+    rec = rec.sort_values('distance')
+
+    # Select relevant columns for display
+    columns = ['artists', 'name']
+    print(rec[columns].head(5))
